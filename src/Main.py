@@ -15,6 +15,7 @@ from contextlib import contextmanager
 from pyvirtualdisplay import Display as PYDisplay
 from os import popen
 from time import sleep
+from typing import Optional,Any
 
 DBNAME="Streets.db"
 DBVER=1
@@ -101,7 +102,43 @@ def scrap_streets(close:bool=True, dbname:str=DBNAME):
           print(f'Exception {err} ignored')
 
 
-def scrap_districts(close:bool=True, dbname:str=DBNAME):
+def locate_district(driver):
+
+  els=driver.find_elements(By.XPATH,
+      f"//ul[{_class_has('breadcrumb')}]"+
+      f"//li[last()-1]//span")
+
+  if len(els)!=1:
+    return None
+
+  el=els[0]
+  district = el.text.split()[1]
+  if "Курортн" in district or \
+     "Петродвор" in district or \
+     "Централ" in district:
+    districtN = re.sub(r"ого", r"ый", district)
+  else:
+    districtN = re.sub(r"ого", r"ий", district)
+
+  return districtN if districtN in DISTRICTS else None
+
+
+def locate_houses(driver)->Optional[str]:
+  els_b=driver.find_elements(By.XPATH,
+      f"//ul[{_class_has('information')}]"+
+      f"//li[last()]//b")
+  if len(els_b)==1 and ('Номера' in els_b[0].text):
+    els_span=driver.find_elements(By.XPATH,
+        f"//ul[{_class_has('information')}]"+
+        f"//li[last()]//span")
+    if len(els_span)==1:
+      return els_span[0].text
+    else:
+      return None
+  else:
+    return None
+
+def scrap_details(close:bool=True, dbname:str=DBNAME):
 
   districts=[]
   with selenium_display(visible=True,close=close) as disp, \
@@ -117,25 +154,10 @@ def scrap_districts(close:bool=True, dbname:str=DBNAME):
         print('Navigating to', url)
         driver.get(url)
 
-        print('Searching elements')
-        els=driver.find_elements(By.XPATH,
-            f"//ul[{_class_has('breadcrumb')}]"+
-            f"//li[last()-1]//span")
+        print('Collecting district...', end='')
+        district=locate_district(driver)
+        print(district)
 
-        for el in els:
-          district = el.text.split()[1]
-          if "Курортн" in district or \
-             "Петродвор" in district or \
-             "Централ" in district:
-            districtN = re.sub(r"ого", r"ый", district)
-          else:
-            districtN = re.sub(r"ого", r"ий", district)
-
-          if districtN in DISTRICTS:
-            districts.append(district)
-            print(name, '->', districtN, f"({district})")
-          else:
-            print(name, '->', '???',  f"({el.text})")
-
-
-
+        print('Collecting houses...', end='')
+        houses=locate_houses(driver)
+        print(houses)
