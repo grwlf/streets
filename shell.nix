@@ -42,7 +42,9 @@ let
     ( with pkgs;
       with self;
     [
+      sqliteman
       ipython
+      sqlite
 
 
       # The next tools are compatible with the

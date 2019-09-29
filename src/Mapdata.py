@@ -17,34 +17,7 @@ from os import popen
 from time import sleep
 from typing import Optional,Any
 
-DBNAME="Streets.db"
-DBVER=1
-DISTRICTS=[
-    "Адмиралтейский", "Василеостровский", "Выборгский", "Калининский", "Кировский", "Колпинский",
-    "Красногвардейский", "Красносельский", "Кронштадтский", "Курортный", "Московский", "Невский",
-    "Петроградский", "Петродворцовый", "Приморский", "Пушкинский", "Фрунзенский", "Центральный"
-    ]
-
-@contextmanager
-def selenium_driver(close:bool=True):
-  opts = webdriver.ChromeOptions()
-  opts.binary_location = popen('which chromium').read().strip()
-  driver = webdriver.Chrome(chrome_options=opts)
-  yield driver
-  if not close:
-    print('Leave driver unclosed')
-  else:
-    driver.quit()
-
-@contextmanager
-def selenium_display(visible:bool=False, close:bool=True):
-  display=PYDisplay(visible=(1 if visible else 0), size=(1024, 768))
-  display.start()
-  yield display
-  if not close:
-    print('Leave display unclosed')
-  else:
-    display.stop()
+from Config import DISTRICTS,DBVER,DBNAME, selenium_display,selenium_display
 
 def mkdb(dbname:str=DBNAME):
   with sqlite3.connect(dbname) as con:
@@ -70,9 +43,6 @@ def addstreet(con, name:str, link:str):
                   (name, link, DBVER))
     except sqlite3.Error as err:
       print("Sqlite error", str(err))
-
-def _class_has(cls:str)->str:
-  return f"contains(concat(' ',normalize-space(@class),' '),' {cls} ')"
 
 
 def scrap_streets(close:bool=True, dbname:str=DBNAME):
@@ -102,7 +72,7 @@ def scrap_streets(close:bool=True, dbname:str=DBNAME):
           print(f'Exception {err} ignored')
 
 
-def locate_district(driver):
+def _locate_district(driver):
 
   els=driver.find_elements(By.XPATH,
       f"//ul[{_class_has('breadcrumb')}]"+
@@ -123,7 +93,7 @@ def locate_district(driver):
   return districtN if districtN in DISTRICTS else None
 
 
-def locate_houses(driver)->Optional[str]:
+def _locate_houses(driver)->Optional[str]:
   els_b=driver.find_elements(By.XPATH,
       f"//ul[{_class_has('information')}]"+
       f"//li[last()]//b")
@@ -146,7 +116,7 @@ def scrap_details(close:bool=True, dbname:str=DBNAME):
 
     with sqlite3.connect(dbname) as con:
 
-      sql="SELECT Name,Link FROM Streets ORDER BY Name"
+      sql="SELECT Name,Link FROM Streets WHERE District is NULL OR Houses is NULL ORDER BY Name"
       for i,r in enumerate(con.execute(sql)):
         name = str(r[0])
         url = str(r[1])
@@ -155,9 +125,21 @@ def scrap_details(close:bool=True, dbname:str=DBNAME):
         driver.get(url)
 
         print('Collecting district...', end='')
-        district=locate_district(driver)
+        district=_locate_district(driver)
         print(district)
 
         print('Collecting houses...', end='')
-        houses=locate_houses(driver)
+        houses=_locate_houses(driver)
         print(houses)
+
+        try:
+          sql2='''
+            UPDATE Streets
+                SET District = ? ,
+                    Houses = ?
+                WHERE Name = ?'''
+          con.cursor().execute(sql2, (district,houses,name))
+          con.commit()
+        except Exception as err:
+          print(f'Exception {err} ignored')
+
