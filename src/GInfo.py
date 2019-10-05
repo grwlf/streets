@@ -2,6 +2,8 @@ import re
 import yaml
 import sqlite3
 import re
+import os
+import subprocess
 
 from selenium import webdriver
 from selenium.webdriver.support.ui import WebDriverWait # available since 2.4.0
@@ -13,7 +15,7 @@ from selenium.common.exceptions import WebDriverException, StaleElementReference
 from contextlib import contextmanager
 
 from pyvirtualdisplay import Display as PYDisplay
-from os import popen
+from os import popen, mkdir
 from time import sleep
 from typing import Optional,Any
 
@@ -30,7 +32,8 @@ def mkdb(dbname:str=DBNAME):
             Link TEXT NOT NULL, \
             District TEXT, \
             Houses TEXT, \
-            Version INT NOT NULL)")
+            Version INT NOT NULL, \
+            Screenshot TEXT)")
       con.commit()
     except sqlite3.OperationalError as err:
       print(err,'(Ignoring)')
@@ -63,6 +66,7 @@ def format_md(dbname:str=DBNAME):
         link = str(r[3])
 
         f.write(f"|{i}|{district}|[{name}]({link})|{houses}|\n")
+
 
 def scrap(close:bool=True, dbname:str=DBNAME):
   """ Open display and samples chat messages """
@@ -133,6 +137,64 @@ def scrap(close:bool=True, dbname:str=DBNAME):
             VALUES(?, ?, ?, ?, ?)''', (name, url, district, houses, DBVER))
         except sqlite3.Error as err:
           print("Sqlite error", str(err), "(ignoring)")
+
+
+def scrap_screenshots(dbname:str=DBNAME):
+  with selenium_display(visible=True,close=True) as disp, \
+       selenium_driver(close=True) as driver:
+
+    ret=subprocess.call(['convert','-version'])
+    assert ret==0
+
+    screenshotdir=os.path.dirname(os.path.abspath(__file__)) + '/../screenshots/'
+    if not os.path.isdir(screenshotdir):
+      os.mkdir(screenshotdir)
+
+    with sqlite3.connect(dbname) as con:
+      sql="SELECT Name,Link FROM Streets_GInfo WHERE Link is NOT NULL ORDER BY Name"
+      for i,r in enumerate(con.execute(sql)):
+        name = str(r[0])
+        url = str(r[1])
+
+        try:
+          print('Navigating to', url)
+          driver.get(url)
+        except Exception as err:
+          print(f'Cant navigate to {url} ({err})')
+          continue
+
+        try:
+          print(f"Capturing {name}")
+          els=driver.find_elements(
+            By.XPATH,
+            f"//div[{class_has('right_block_2')}]")
+          if len(els)<1:
+            continue
+
+          screenshot_file="/tmp/street_screenshot.png"
+          print(f"Saving {screenshot_file}")
+          els[0].screenshot(screenshot_file)
+          small_screenshot_filename=("small_screenshot_%04d.png" %(i,))
+          small_screenshot_file=screenshotdir+'/'+small_screenshot_filename
+
+          print(f"Converting to {small_screenshot_file}")
+          ret=subprocess.call(['convert', '-resize', '192x192', screenshot_file, small_screenshot_file])
+          if ret!=0:
+            print(f"Error code is {ret} (!=0), skipping")
+            continue
+
+        except Exception as err:
+          print(f'Cant prepare a screenshot ({err}), skipping')
+          continue
+
+        try:
+          print(f"Updating name '{name}'\nscreenshot '{small_screenshot_filename}'\n")
+          con.execute('''
+            UPDATE Streets_GInfo SET Screenshot = ? WHERE Name = ?''',
+            (small_screenshot_filename, name))
+        except sqlite3.Error as err:
+          print("Sqlite error", str(err), "(ignoring)")
+
 
 
 
