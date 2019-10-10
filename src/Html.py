@@ -137,7 +137,7 @@ def print(out_filename, iterator):
       f.write(dedent(f'''
         <tr style="display:table-row">
           <td>{i}</td>
-          <td>{district}</td>
+          <td>район {district}</td>
           <td><a href='{link}'>{name}</a></td>
           <td>{houses}</td>
         </tr>
