@@ -1,7 +1,7 @@
-export CWD=`pwd`
-export PYTHONPATH="$CWD/src:$PYTHONPATH"
+export STREETS_ROOT=`pwd`
+export PYTHONPATH="$STREETS_ROOT/src:$PYTHONPATH"
 export MYPYPATH="$PYTHONPATH"
-alias ipython="sh $CWD/ipython.sh"
+alias ipython="sh $STREETS_ROOT/ipython.sh"
 
 runjupyter() {
   jupyter-notebook --ip 0.0.0.0 --port 8888 \

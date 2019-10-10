@@ -1,18 +1,18 @@
 #!/bin/sh
 
-if ! test -d "$CWD" ; then
-  echo "CWD is not set"
+if ! test -d "$STREETS_ROOT" ; then
+  echo "STREETS_ROOT is not set"
   exit 1
 fi
 
 # if test -n "$DISPLAY"; then
 #   export QT_QPA_PLATFORM_PLUGIN_PATH=`echo ${pkgs.qt5.qtbase.bin}/lib/qt-*/plugins/platforms/`
-#   alias ipython='ipython --matplotlib=qt5 --profile-dir=$CWD/.ipython-profile'
-#   alias ipython0='ipython --profile-dir=$CWD/.ipython-profile'
+#   alias ipython='ipython --matplotlib=qt5 --profile-dir=$STREETS_ROOT/.ipython-profile'
+#   alias ipython0='ipython --profile-dir=$STREETS_ROOT/.ipython-profile'
 # fi
 
-mkdir $CWD/.ipython-profile 2>/dev/null || true
-cat >$CWD/.ipython-profile/ipython_config.py <<EOF
+mkdir $STREETS_ROOT/.ipython-profile 2>/dev/null || true
+cat >$STREETS_ROOT/.ipython-profile/ipython_config.py <<EOF
 c = get_config()
 c.InteractiveShellApp.exec_lines = []
 c.InteractiveShellApp.exec_lines.append('%load_ext autoreload')
@@ -44,4 +44,4 @@ def tweak():
 tweak()
 EOF
 
-ipython3 --profile-dir=$CWD/.ipython-profile -i "$@"
+ipython3 --profile-dir=$STREETS_ROOT/.ipython-profile -i "$@"

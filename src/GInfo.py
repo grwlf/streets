@@ -19,80 +19,18 @@ from os import popen, mkdir
 from time import sleep
 from typing import Optional,Any
 from textwrap import dedent
+from os.path import join
+from os import makedirs
+
+from Html import print as print_html
 
 
 from Config import DISTRICTS,DBVER,DBNAME, selenium_display,selenium_driver,class_has
 
 
-SCRIPT='''
-
-function clearclass(item, cls) {
-  item.classList.remove(cls);
-}
-function setclass(item, cls) {
-  item.classList.add(cls);
-}
-
-function filter(predicate) {
-  var nodelist = document.getElementById('data').getElementsByTagName('tr');
-  var good = new Array()
-  var bad = new Array()
-  for (var i = 1; i < nodelist.length; i++) {
-    var tr = nodelist.item(i);
-    if (i % 100 == 0) {
-      console.log('Processed '+i+' of '+nodelist.length)
-    }
-    if(predicate(tr)) {
-      good.push(tr);
-    }
-    else {
-      bad.push(tr);
-    }
-  }
-  console.log('Collect '+good.length+' / '+bad.length)
-
-  bad.forEach(function(el,index){
-    el.style.display = "none";
-  });
-  good.forEach(function(el,index){
-    el.style.display = "table-row";
-  });
-
-  console.log('Complete '+good.length+' / '+bad.length)
-}
-
-function matchtr(tr, record) {
-  var tds = tr.getElementsByTagName('td');
-  for(var j = 0 ; j <tds.length; j++) {
-    <!-- console.log(tds[j].innerText.trim()) -->
-    if (tds[j].innerHTML.trim() == record) {
-      return true;
-    }
-  }
-  return false
-}
-
-function trtext(tr) {
-  var res = '';
-  var tds = tr.getElementsByTagName('td');
-  for(var j = 0 ; j <tds.length; j++) {
-    if (j!=0) res += "|";
-    res += tds[j].innerText;
-  }
-  return res
-}
-
-function matchre(record) {
-  var re=RegExp(record,'i');
-  return function(tr) {
-    var ans=re.test(trtext(tr));
-    if(ans>0)
-      return true;
-    else
-      return false;
-  };
-}
-'''
+ROOT=os.environ['STREETS_ROOT']
+OUTDIR=join(ROOT,"out")
+makedirs(OUTDIR, exist_ok=True)
 
 def mkdb(dbname:str=DBNAME):
   with sqlite3.connect(dbname) as con:
@@ -139,81 +77,15 @@ def format_md(dbname:str=DBNAME):
 
         f.write(f"|{i}|{district}|[{name}]({link})|{houses}|\n")
 
-
 def format_html(dbname:str=DBNAME):
-  with sqlite3.connect(dbname) as con:
+  def _iter():
     sql='''
     SELECT Name,District,Houses,Link
     FROM Streets_GInfo
     ORDER BY District,Name'''
-
-    with open("Streets_GInfo.html","w") as f:
-      f.write(dedent('''\
-        <html>
-        <head>
-        <script>
-        '''
-        +SCRIPT+
-        '''
-        </script>
-        </head>
-        <body>
-          <div>
-            <p style="color:grey">
-            Поиск видит строки таблицы как большие предложения, в которых текст
-            колонок соединен символом '|'. Поиск понимает регулярные выражения.
-            Регистр значения не имеет.
-            </p>
-            <p style="color:grey">
-            Примеры:
-            <ul style="color:grey">
-            <li>'Верхний' - отфильтровать строки, в которых встречается строка Верхний</li>
-            <li>'Верхний.* 4Б' - отфильтровать строки, в которых встречается слово
-            Верхний, потом лбюбое количество любых символов, потом пробел, потом
-            4Б</li>
-            </ul>
-            </p>
-            <input type="text" size="45" id="input" onkeydown="
-              if(event.keyCode == 13) {
-                p=matchre(document.getElementById('input').value);
-                filter(p);
-                return false;
-              }
-              return true;
-            "></input>
-            <button onclick="
-              p=matchre(document.getElementById('input').value);
-              filter(p);
-            ">Search!</button>
-            <button onclick="filter(function(tr) { return true })" >Reset!</button>
-          </div>
-          <table id="data">
-          <tr>
-            <th>№</th>
-            <th>Район</th>
-            <th>Название</th>
-            <th>Дома</th>
-          </tr>
-       '''))
-      for i,r in enumerate(con.execute(sql)):
-        name = str(r[0])
-        district = str(r[1])
-        houses = str(r[2])
-        link = str(r[3])
-
-        f.write(dedent(f'''
-          <tr style="display:table-row">
-            <td>{i}</td>
-            <td>{district}</td>
-            <td><a href='{link}'>{name}</a></td>
-            <td>{houses}</td>
-          </tr>
-          '''))
-      f.write(dedent('''
-        </table>
-        </body>
-        </html>
-        '''))
+    with sqlite3.connect(dbname) as con:
+      yield from con.execute(sql)
+  return print_html(join(OUTDIR,"Streets_GInfo.html"), _iter())
 
 def scrap(close:bool=True, dbname:str=DBNAME):
   """ Open display and samples chat messages """
